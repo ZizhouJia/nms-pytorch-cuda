@@ -1,0 +1,4 @@
+#第一步编译cuda源文件，生成 mns.cu.o
+nvcc -c -o nms.cu.o nms_cuda.cu -x cu -Xcompiler -fPIC -arch=sm_52 --std=c++11
+#第二步执行python build.py 生成扩展模块 _ext.nms
+#第三步执行python unit_test.py 测试是否成功运行
