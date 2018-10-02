@@ -16,7 +16,7 @@ __device__ int get_thread(){
   return threadIdx.x;
 }
 
-__global__ void nms_cuda_imp(long* bbox, int64_t* bbox_size,
+__global__ void nms_cuda_imp(float* bbox, int64_t* bbox_size,
    float* mask,int64_t* mask_size,float thresh){
      int index=get_index();
      int block_prefix=get_block_prefix();
@@ -34,32 +34,35 @@ __global__ void nms_cuda_imp(long* bbox, int64_t* bbox_size,
        if(mask[index]==0){
          continue;
        }
-       long x11=bbox[4*(block_prefix)+0];
-       long y11=bbox[4*(block_prefix)+1];
-       long x12=bbox[4*(block_prefix)+2];
-       long y12=bbox[4*(block_prefix)+3];
-       long x21=bbox[4*(index)+0];
-       long y21=bbox[4*(index)+1];
-       long x22=bbox[4*(index)+2];
-       long y22=bbox[4*(index)+3];
-       int areas_u=(x12-x11)*(y12-y11)+(x22-x21)*(y22-y21);
-       int max_x1=((x11>=x21)?x11:x21);
-       int max_y1=((y11>=y21)?y11:y21);
-       int min_x2=((x12>=x22)?x12:x22);
-       int min_y2=((y12>=y22)?y12:y22);
-       int w=min_x2-max_x1;
+       if(bbox[7*(block_prefix+i)+6]!=bbox[7*(index)+6]){
+         continue;
+       }
+       float x11=bbox[7*(block_prefix+i)+0];
+       float y11=bbox[7*(block_prefix+i)+1];
+       float x12=bbox[7*(block_prefix+i)+2];
+       float y12=bbox[7*(block_prefix+i)+3];
+       float x21=bbox[7*(index)+0];
+       float y21=bbox[7*(index)+1];
+       float x22=bbox[7*(index)+2];
+       float y22=bbox[7*(index)+3];
+       float areas_u=(x12-x11)*(y12-y11)+(x22-x21)*(y22-y21);
+       float max_x1=((x11>=x21)?x11:x21);
+       float max_y1=((y11>=y21)?y11:y21);
+       float min_x2=((x12<=x22)?x12:x22);
+       float min_y2=((y12<=y22)?y12:y22);
+       float w=min_x2-max_x1;
        w=(w>=0?w:0);
-       int h=min_y2-max_y1;
+       float h=min_y2-max_y1;
        h=(h>=0?h:0);
-       int areas_n=w*h;
+       float areas_n=w*h;
        if(areas_u-areas_n==0){
          continue;
        }
-       if(float(areas_n)/float(areas_u-areas_n)>thresh){
+       float iou=areas_n/(areas_u-areas_n);
+       if(iou>thresh){
          mask[index]=0;
        }
      }
-
    }
 
 void cuda_cpy(int64_t* from,int64_t** to,int size){
@@ -67,7 +70,7 @@ void cuda_cpy(int64_t* from,int64_t** to,int size){
   cudaMemcpy(*to,from,size*sizeof(int64_t),cudaMemcpyHostToDevice);
 }
 
-void nms_cuda(long* bbox, int64_t* bbox_size,
+void nms_cuda(float* bbox, int64_t* bbox_size,
    float* mask,int64_t* mask_size,float thresh,cudaStream_t stream){
   int d1=1;
   int d2=1;

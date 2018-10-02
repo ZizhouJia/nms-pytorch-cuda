@@ -18,8 +18,8 @@ void fill_long_size(int64_t* input_size,THCudaLongTensor* input,int dims){
 
 
 
-void nms(THCudaLongTensor* bbox, THCudaTensor* mask,float thresh){
-  long* bbox_data = THCudaLongTensor_data(state,bbox);
+void nms(THCudaTensor* bbox, THCudaTensor* mask,float thresh){
+  float* bbox_data = THCudaTensor_data(state,bbox);
   float* mask_data=THCudaTensor_data(state,mask);
   cudaStream_t stream = THCState_getCurrentStream(state);
   int64_t bbox_size[3];

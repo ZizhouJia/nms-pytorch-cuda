@@ -4,34 +4,66 @@ import numpy as np
 import torch
 
 
-# bbox_number 是一个batch_size 大小的一维numpy，其中的每个元素是一张图片的bbox数量
-# 这个函数生成一个batch_size*max(bbox_number) 大小的LongTensor 并返回该tensor
-# 例如:bbox_number=[2,3,1]
-# 则生成的mask为
-# [[1,1,0],[1,1,1],[1,0,0]]
-# 其中1代表该位置的bbox有效 0代表无效
-def _get_mask(bbox_number):
-    max_bbox_number = bbox_number.max()
-    mask = np.ones([np.size(bbox_number, 0), max_bbox_number], np.int64)
-    for i in range(0, np.size(bbox_number, 0)):
-        mask[i, bbox_number[i]:-1] = 0
-    return torch.Tensor(mask).cuda()
+def bbox_point_trans(prediction):
+    box_a = prediction.new(prediction.shape)
+    box_a[:,:,0] = (prediction[:,:,0] - prediction[:,:,2]/2)
+    box_a[:,:,1] = (prediction[:,:,1] - prediction[:,:,3]/2)
+    box_a[:,:,2] = (prediction[:,:,0] + prediction[:,:,2]/2)
+    box_a[:,:,3] = (prediction[:,:,1] + prediction[:,:,3]/2)
+    prediction[:,:,0:4] = box_a[:,:,0:4]
+    return prediction
+
+def softmax_to_class_label(prediction,classes_number):
+    new_prediction=torch.zeros((prediction.size()[0],prediction.size()[1],7)).cuda()
+    max_score,max_index=torch.max(prediction[:,:,5:5+classes_number],2)
+    max_index=max_index.float()
+    new_prediction[:,:,0:5]=prediction[:,:,0:5]
+    new_prediction[:,:,5]=max_score
+    new_prediction[:,:,6]=max_index
+    return new_prediction
+
+def sort_predition(prediction):
+    _,index=torch.sort(prediction[:,:,4], dim=1, descending=True)
+    for i in range(0,prediction.size()[0]):
+        prediction[i,:,:]=prediction[i,index[i],:]
+    return prediction
 
 
-# bbox [batch_size,max_bbox_number,4] long cuda tensor
-# bbox_number [batch_size] 是一个batch_size 大小的一维numpy，其中的每个元素是一张图片的bbox数量
-# score [batch_size,max_bbox_number] float cuda tensor
-# thresh float
-# 返回按照score降序排列的bbox,score和有效位的mask
-def nms(bbox, bbox_number, score, thresh):
-    if(bbox.size()[0] != np.size(bbox_number, 0)):
-        raise RuntimeError('the bbox size must equal the bbox_number size')
-    if(bbox.size()[0] != score.size()[0] or bbox.size()[1] != score.size()[1]):
-        raise RuntimeError('the bbox size must equal the score size')
-    mask = _get_mask(bbox_number)
-    score = mask*score
-    score, idx = torch.sort(score, dim=1, descending=True)
-    for i in range(0, bbox.size()[0]):
-        bbox[i, :, :] = bbox[i, idx[i], :]
-    nms_c.nms(bbox, mask, thresh)
-    return bbox, score, mask
+def make_mask(prediction,thresh,classes_number):
+    mask=torch.zeros((prediction.size()[0],prediction.size()[1])).cuda()
+    mask_thresh=(prediction[:,:,4]>thresh).float().cuda()
+    return mask_thresh
+
+
+def make_result(prediction,mask):
+    output=0
+    has_value=0
+    for i in range(0,mask.size()[0]):
+        select_index=torch.nonzero(mask[i,:])
+        select_index=select_index.view(-1)
+        batch_output=prediction[i,select_index,:]
+        batch_number=torch.zeros((batch_output.size()[0],1)).cuda()
+        batch_number[:,:]=i
+        batch_output=torch.cat((batch_number,batch_output),1)
+        if(has_value==0):
+            output=batch_output
+            has_value=1
+        else:
+            output=torch.cat((output,batch_output),0)
+    return output
+
+
+def nms(prediction,mask,thresh):
+    nms_c.nms(prediction, mask, thresh)
+    return mask
+
+
+def write_results(prediction, confidence, num_classes, nms = True, nms_conf = 0.4):
+    prediction=bbox_point_trans(prediction)
+    prediction=softmax_to_class_label(prediction,num_classes)
+    prediction=sort_predition(prediction)
+    mask=make_mask(prediction,confidence,num_classes)
+    if nms:
+        nms_c.nms(prediction,mask,nms_conf)
+    result=make_result(prediction,mask)
+    return result

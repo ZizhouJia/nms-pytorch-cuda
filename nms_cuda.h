@@ -4,7 +4,7 @@
 extern "C" {
 #endif
 
-void nms_cuda(long* bbox, int64_t* bbox_size,float* mask,int64_t* mask_size,float thresh, cudaStream_t stream);
+void nms_cuda(float* bbox, int64_t* bbox_size,float* mask,int64_t* mask_size,float thresh, cudaStream_t stream);
 
 #ifdef __cplusplus
 }

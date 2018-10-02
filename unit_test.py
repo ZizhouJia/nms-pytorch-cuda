@@ -1,54 +1,41 @@
 import nms
 import numpy as np
 import torch
+import sys
 
 
 def test_nms():
     bbox = [[
-        [0, 0, 6, 6], [1, 1, 7, 7], [5, 5, 12, 12]],
-        [[0, 0, 6, 6], [0, 1, 6, 7], [0, 0, 0, 0]]]
-    bbox = torch.LongTensor(bbox).cuda()
+        [3, 3, 6, 6, 0.7 ,0.8, 0.2], [4, 4, 6, 6, 0.8, 0.7, 0.3], [8.5, 8.5, 7, 7, 0.5, 0.6, 0.4],
+        [3, 3, 6, 6, 0.2 ,0.2, 0.8], [4, 4, 6, 6, 0.8, 0.3, 0.7], [8.5, 8.5, 7, 7, 0.5, 0.4, 0.6]],
+        [[3, 3, 6, 6, 0.8, 0.8,0.2], [3, 4, 6, 6, 0.4,0.8,0.2], [0, 0, 0, 0, 0.1,0.1,0.2],
+        [3, 3, 6, 6,0.2,0.2,0.8], [3, 4, 6, 6,0.8,0.2,0.8], [0, 0, 0, 0, 0.1,0.1,0.2]]]
+    bbox = torch.Tensor(bbox).cuda()
 
-    score = [
-        [0.2, 0.8, 0.5],
-        [0.5, 0.4, 0.0]]
-    score = torch.Tensor(score).cuda()
+    confidence=0.15
 
-    bbox_number = [3, 2]
-    bbox_number = np.array(bbox_number)
-    thresh = 0.5
+    target_bbox=[[ 0,  1,  1,  7,  7,  0.8,  0.7,  1],
+        [ 0,  1,  1,  7,  7,  0.8,  0.7,  0],
+        [ 0,  5,  5, 12, 12,  0.5,  0.6,  1],
+        [ 0,  5,  5, 12, 12,  0.5,  0.6,  0],
+        [ 1,  0,  1,  6,  7,  0.8,  0.8,  1],
+        [ 1,  0,  0,  6,  6,  0.8,  0.8,  0]]
+    target_bbox=torch.Tensor(target_bbox).cuda()
 
-    target_bbox = [[
-        [1, 1, 7, 7], [5, 5, 12, 12], [0, 0, 6, 6]],
-        [[0, 0, 6, 6], [0, 1, 6, 7], [0, 0, 0, 0]]
-    ]
-    target_bbox = torch.LongTensor(target_bbox).cuda()
+    result= nms.write_results(bbox,confidence,2)
 
-    target_score = [
-        [0.8, 0.5, 0.2],
-        [0.5, 0.4, 0.0]]
-    target_score = torch.Tensor(target_score).cuda()
+    if(result.size()[0]!=target_bbox.size()[0]):
+        print("fail the test")
+        print(result)
+        sys.exit()
 
-    target_mask = [
-        [1, 0, 1],
-        [1, 0, 0]
-    ]
-    target_mask = torch.Tensor(target_mask).cuda()
 
-    sort_bbox, sort_score, mask = nms.nms(bbox, bbox_number, score, thresh)
 
-    if(torch.sum((target_bbox-sort_bbox)) == 0):
-        print('test succeed in sort_bbox')
+    if(torch.sum((target_bbox-result)) == 0):
+        print('test succeed in nms bbox')
     else:
-        print('test fail in sort_bbox')
-    if(torch.sum((target_score-sort_score)) == 0):
-        print('test succeed in sort_score')
-    else:
-        print('test fail in sort_score')
-    if(torch.sum((mask-target_mask)) == 0):
-        print('test succeed in mask')
-    else:
-        print('test fail in mask')
+        print('test fail in nms bbox')
+        print(result)
 
 
 if __name__ == '__main__':
